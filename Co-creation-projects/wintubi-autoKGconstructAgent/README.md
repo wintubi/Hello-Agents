@@ -1,145 +1,100 @@
-# Auto KG Construct Agent
+# wintubi-autoKGconstructAgent（多模态 KG 构建 + GraphRAG/LightRAG 脚手架）
 
-# 项目名称
+> 目标：用“图片定位/识别 + LLM 抽取”跑通 **LPG（属性图谱）** 的全链路，并兼容 GraphRAG/LightRAG 思路：
+> - 实体：团体 / 人 / 事件 / 位置 / 组织（可扩展）
+> - data gleaning：结构规则补全边
+> - 文本/图片 → 图谱（节点/边带属性与证据）
+> - 查询：实体检索、邻域、社区
+> - 社区检测 + 层级化总结 + 推理补全
+> - “超越文本匹配”：图结构 + 语义相似度检索
 
-> 一句话描述你的项目
->
-> A project for automatically constructing knowledge graphs using AI agents：LLM的自主决策能力实现知识抽取、标注与校验的自动化，结合少样本学习降低垂类数据依赖，整合文本（文献、题跋）、视觉（笔墨、印章）、关系（师承、收藏）等多维度知识，提升语义理解的深度。
+## 目录结构
 
-## 📝 项目简介
+```
+wintubi-autoKGconstructAgent/
+  README.md
+  requirements.txt
+  .env.example
+  main.ipynb
+  data/
+    sample_article.md
+    image.png
+    sample.csv
+    sample_code.py
+    test_cases.json
+  src/
+    app.py
+    schema.py
+    llm.py
+    ocr.py
+    extract.py
+    graph_store.py
+    gleaning.py
+    community.py
+    query.py
+    integrations/
+      graphrag_runner.py
+      lightrag_runner.py
+    agents/
+    tools/
+    utils/
+```
 
-详细介绍你的项目:
+## 快速开始（无 API 也可跑）
 
-- 解决什么问题？
+1) 安装依赖
 
-  - [X] 文化遗产存在“实体别名多、关系模糊”的特点，传统抽取模型精度不足
-  - [ ] 传统方法存在“视觉知识结构化难”的痛点
-  - [ ] 垂类数据稀缺，传统KG构建依赖大量标注数据
-- 有什么特色功能？
-
-  - [ ] 提出BERT层融合lexicon的抽取方案，提升中文垂类数据处理精度
-  - [ ] 设计多模态抽取框架：文本层面采用LeBERT迭代标注抽取艺术家/作品属性；视觉层面提出BSRGAN+EfficientNet-B0印章提取（F1=99.28%）、EfficientDet主题检测（mAP@0.5=74.3%）。
-  - [ ] 度量学习、元学习、提示学习
-- 适用于什么场景？
-
-  - [ ] 包括画派文献实体抽取、关系识别
-  - [ ] 书画KG构建、跨模态检索
-  - [ ] 小众艺术家知识补全、稀缺作品关系抽取
-
-## ✨ 核心功能
-
-- [ ] 功能1:描述
-- [ ] 功能2:描述
-- [ ] 功能3:描述
-
-## 🛠️ 技术栈
-
-- HelloAgents框架
-- 使用的智能体范式（如ReAct、Plan-and-Solve等）
-- 使用的工具和API
-- 其他依赖库
-
-## 🚀 快速开始
-
-### 环境要求
-
-- Python 3.10+
-- 其他要求
-
-### 安装依赖
-
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
-### 配置API密钥
+2) 运行文本端到端 Demo（不调用真实 LLM，使用启发式抽取）
 
-\`\`\`bash
+```bash
+python -m src.app demo --input data/sample_article.md --out outputs
+```
 
-# 创建.env文件
+产物：
+- outputs/graph.json：抽取后的属性图谱（LPG）
+- outputs/communities.json：社区检测结果
+- outputs/hierarchy_summary.md：层级化总结（无 LLM 时为启发式）
 
+3) 启用 LLM 抽取（可选）
+
+```bash
 cp .env.example .env
+# 填入 OPENAI_* 或 OLLAMA_* 后
+python -m src.app demo --input data/sample_article.md --out outputs --llm
+```
 
-# 编辑.env文件，填入你的API密钥
+4) 图片 OCR（可选）
 
-\`\`\`
+```bash
+python -m src.app ocr --image data/image.png --out outputs
+```
+会输出 ocr_text.txt 与 ocr_debug.json（包含检测框/置信度，且日志会标明使用的 OCR 后端）。
 
-### 运行项目
+5) GraphRAG / LightRAG（可选接入）
 
-\`\`\`bash
+```bash
+python -m src.integrations.graphrag_runner --check
+python -m src.integrations.lightrag_runner --check
+```
+它们只做依赖检测与占位；如果要接官方实现，请按提示安装后在此处接入索引/检索逻辑。
 
-# 启动Jupyter Notebook
+## 设计要点
+- 多模态入口：OCR（PaddleOCR 优先，失败/缺失时回退 pytesseract，带告警日志）。
+- 图谱：LPG（节点/边含属性、可扩展属性），支持 rule-based gleaning 边推理。
+- 社区与摘要：networkx 社区检测 + 启发式层级总结（可进一步用 LLM 强化）。
+- 查询：名字子串 + TF-IDF 语义检索 + 邻域探索；对空图和超大 hops 做防护。
+- 可配置：LLM 请求超时通过环境变量 LLM_TIMEOUT_SECONDS 控制，默认 120s。
 
-jupyter lab
+## 外部资源
+- 中国法书全集（百度网盘）：https://pan.baidu.com/s/1ovsluXjRIjPnjGfl6SktOw?pwd=j46i
 
-# 打开main.ipynb并运行
+## 作者
+- GitHub: @wintubi
+- Email: 1319098922@qq.com
 
-\`\`\`
-
-## 📖 使用示例
-
-展示如何使用你的项目，最好包含代码示例和运行结果。
-
-## 🎯 项目亮点
-
-- 亮点1:说明
-- 亮点2:说明
-- 亮点3:说明
-
-## 📊 性能评估
-
-如果有评估结果，展示在这里:
-
-- 准确率:XX%
-- 响应时间:XX秒
-- 其他指标
-
-## 🔮 未来计划
-
-- [ ] 待实现的功能1
-- [ ] 待实现的功能2
-- [ ] 待优化的部分
-
-## 🤝 贡献指南
-
-欢迎提出Issue和Pull Request！
-
-## 📄 许可证
-
-MIT License
-
-## 👤 作者
-
-- GitHub: [@你的用户名](https://github.com/你的用户名)
-- Email: 你的邮箱（可选）
-
-## 🙏 致谢
-
-感谢Datawhale社区和Hello-Agents项目！
-
-readme参考上面
-
-## 📚 外部资源
-
-本项目使用的大型数据集和资源请从以下链接下载:
-
-### 数据集下载
-- 完整数据集: [百度网盘](https://example.com) 提取码: xxxx
-- 预训练模型: [Google Drive](https://example.com)
-- 文献数据: [Zenodo](https://zenodo.org)
-
-### 相关项目和工具
-- HelloAgents框架: [GitHub](https://github.com/datawhalechina/hello-agents)
-- LLM模型库: [Hugging Face](https://huggingface.co)
-- 知识图谱工具: [Neo4j](https://neo4j.com)
-
-### 演示和文档
-- 演示视频: [B站](https://www.bilibili.com) / [YouTube](https://youtube.com)
-- 详细教程: [ReadTheDocs](https://example.readthedocs.io)
-- API文档: [Swagger UI](https://example.com/docs)
-
-## 参考文献
-
-> 《Lexicon Enhanced Chinese Sequence Labelling Using BERT Adapter》
->
-> 《WuMKG：a Chinese painting and calligraphy multimodal knowledge graph》
+## 致谢
+- Datawhale 社区与 Hello-Agents 项目
